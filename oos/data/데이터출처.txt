@@ -6,3 +6,5 @@
 행정동 단위 서울 생활인구(내국인) - 서울열린데이터 광장 : https://data.seoul.go.kr/dataList/OA-14991/S/1/datasetView.do?utm_source=chatgpt.com#
 
 서울시 상권분석서비스(점포-행정동) - 서울열린데이터광장 : http://data.seoul.go.kr/dataList/OA-22172/S/1/datasetView.do
+
+서울시 부동산 전월세가 정보(행정동, 전월세 등) - 공공데이터 : https://data.seoul.go.kr/dataList/OA-21276/S/1/datasetView.do
