@@ -161,4 +161,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-hide_data
+hide_data, living ppl(local), data-files
