@@ -161,7 +161,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-OOS/hide_data
+# 무시하는 폴더 추가하는 방법(폴더명 또는 경로를 아래줄에 추가)
+oos/hide_data
 hide_data
 living ppl(local)
 data-files
