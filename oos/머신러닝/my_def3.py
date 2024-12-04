@@ -286,9 +286,6 @@ def category_model_evaluation(
     # 결과 반환
     return results_df.sort_values(by="test_mae_ratio")
 
-
-
-
 # 사용예시
 """
 # SVR 모델을 선택하여 실행
@@ -303,3 +300,6 @@ results_df = category_model_evaluation(
 
 print(results_df)
 """
+
+#########################################################################################
+
