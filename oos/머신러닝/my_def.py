@@ -1,3 +1,5 @@
+#########################################################################################
+
 # 특성 메모리 사용량 감소 int 64 -> 적당한 형태로
 def reduce_memory_usage(df):
     """
@@ -46,6 +48,7 @@ def reduce_memory_usage(df):
 
     return df
 
+#########################################################################################
 
 # 모델 평가 함수 정의
 def evaluate_model(model, X_train, X_test, y_train, y_test):
@@ -98,3 +101,673 @@ def evaluate_model(model, X_train, X_test, y_train, y_test):
         'test_mae_ratio': round(test_mae_ratio, 2)
     }
 
+#########################################################################################
+
+def linear_category_model(df, test_size=0.2, random_state=42, scaler_type=None):
+    """
+    업종별 데이터를 처리하고 선형 회귀 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # 선형 회귀 모델 학습
+        model = LinearRegression()
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
+
+def random_forest_category_model(df, test_size=0.2, random_state=42, scaler_type=None):
+    """
+    업종별 데이터를 처리하고 랜덤 포레스트 회귀 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import RandomForestRegressor
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # 랜덤 포레스트 회귀 모델 학습
+        model = RandomForestRegressor(random_state=random_state)
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
+
+def gradient_boosting_category_model(df, test_size=0.2, random_state=42, scaler_type=None):
+    """
+    업종별 데이터를 처리하고 Gradient Boosting 회귀 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.ensemble import GradientBoostingRegressor
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # Gradient Boosting 회귀 모델 학습
+        model = GradientBoostingRegressor(random_state=random_state)
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
+
+def lgbm_category_model(df, test_size=0.2, random_state=42, scaler_type=None, model_params=None):
+    """
+    업종별 데이터를 처리하고 LGBM 회귀 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: None)
+        model_params (dict): LGBMRegressor의 하이퍼파라미터 설정 (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    from lightgbm import LGBMRegressor
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # LGBM 회귀 모델 학습
+        model = LGBMRegressor(random_state=random_state, **(model_params or {}))
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
+
+def svr_category_model(df, test_size=0.2, random_state=42, scaler_type='standard', model_params=None):
+    """
+    업종별 데이터를 처리하고 SVR 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: 'standard')
+        model_params (dict): SVR의 하이퍼파라미터 설정 (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.svm import SVR
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # SVR 모델 학습
+        model = SVR(**(model_params or {}))
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
+
+def mlp_category_model(df, test_size=0.2, random_state=42, scaler_type='standard', model_params=None):
+    """
+    업종별 데이터를 처리하고 MLP 회귀 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: 'standard')
+        model_params (dict): MLPRegressor의 하이퍼파라미터 설정 (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.neural_network import MLPRegressor
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # MLP 회귀 모델 학습
+        model = MLPRegressor(random_state=random_state, **(model_params or {}))
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
+
+def elasticnet_category_model(df, test_size=0.2, random_state=42, scaler_type='standard', model_params=None):
+    """
+    업종별 데이터를 처리하고 ElasticNet 회귀 모델을 학습하여 성능 평가 결과를 반환합니다.
+
+    Parameters:
+        df (pd.DataFrame): 입력 데이터프레임
+        test_size (float): 테스트 데이터 비율 (기본값: 0.2)
+        random_state (int): 랜덤 시드 값 (기본값: 42)
+        scaler_type (str): 사용할 스케일러 종류 ('standard', 'minmax', None) (기본값: 'standard')
+        model_params (dict): ElasticNet의 하이퍼파라미터 설정 (기본값: None)
+
+    Returns:
+        pd.DataFrame: 성능 평가 결과를 담은 데이터프레임
+    """
+    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import ElasticNet
+    from sklearn.preprocessing import StandardScaler, MinMaxScaler
+    import pandas as pd
+
+    # 스케일러 초기화
+    if scaler_type == 'standard':
+        scaler = StandardScaler()
+    elif scaler_type == 'minmax':
+        scaler = MinMaxScaler()
+    else:
+        scaler = None
+
+    # 업종명 고유값 추출
+    unique_categories = df["업종별카테고리"].unique()
+
+    # 결과를 저장할 딕셔너리 생성
+    results = {}
+
+    # 각 업종별로 데이터를 나누어 모델 학습 및 예측 수행
+    for category in unique_categories:
+        # 업종별 데이터 필터링
+        df_category = df[df['업종별카테고리'] == category]
+
+        # 원핫인코딩 수행
+        df_category = pd.get_dummies(df_category, columns=['행정동'], drop_first=True)
+
+        # 피처와 타겟 설정
+        features = ['년분기', '인구수', '지역생활인구', '장기외국인', '단기외국인',
+                    '주차장면적(면)', '주차장개수(개소)', '학교수', '학생수', '버스정류장수'] + \
+                   [col for col in df_category.columns if col.startswith('행정동_')]
+        target = '월매출(점포)'
+
+        # 피처와 타겟 데이터 분리
+        X = df_category[features]
+        y = df_category[target]
+
+        # 스케일러 적용 (선택적으로)
+        if scaler is not None:
+            X = scaler.fit_transform(X)
+
+        # 학습 데이터와 테스트 데이터 분리
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+
+        # ElasticNet 모델 학습
+        model = ElasticNet(random_state=random_state, **(model_params or {}))
+        model.fit(X_train, y_train)
+
+        # 성능 평가 호출 (evaluate_model은 별도 정의된 함수로 가정)
+        evaluation_result = evaluate_model(model, X_train, X_test, y_train, y_test)
+
+        # 결과 저장
+        if evaluation_result is not None:
+            results[category] = evaluation_result
+
+    # 결과를 데이터프레임으로 변환
+    results_df = pd.DataFrame.from_dict(results, orient='index')
+    results_df = results_df.apply(pd.to_numeric)
+
+    # test_mae_ratio의 최고, 최저, 평균 추가
+    test_mae_ratio_max = results_df['test_mae_ratio'].max()
+    test_mae_ratio_min = results_df['test_mae_ratio'].min()
+    test_mae_ratio_mean = results_df['test_mae_ratio'].mean()
+
+    # 모든 행에 공통으로 최고, 최저, 평균 추가
+    test_mae_summary = {
+        'test_mae_ratio_max': test_mae_ratio_max,
+        'test_mae_ratio_min': test_mae_ratio_min,
+        'test_mae_ratio_mean': test_mae_ratio_mean
+    }
+
+    for key, value in test_mae_summary.items():
+        results_df[key] = value
+
+    # 결과를 소수점 2자리로 포맷팅
+    pd.options.display.float_format = '{:.2f}'.format
+
+    # 결과 반환
+    return results_df.sort_values(by="test_mae_ratio")
+
+#########################################################################################
