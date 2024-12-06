@@ -205,15 +205,7 @@ def category_model_evaluation(
     model_name = model_class.__name__
 
     # 모델 초기화
-    if model_params is None:
-        model_params = {}
-
-    # random_state가 지원되는 경우에만 추가
-    if "random_state" in model_class().get_params():
-        model_params.setdefault("random_state", random_state)
-
-    model = model_class(**model_params)
-
+    model = model_class(**(model_params or {}))
 
     # 카테고리 고유값 추출
     unique_categories = df[category_column].unique()
@@ -224,8 +216,7 @@ def category_model_evaluation(
     # 각 카테고리별로 데이터를 나누어 모델 학습 및 예측 수행
     for category in unique_categories:
         # 카테고리별 데이터 필터링
-        df_category = df[df[category_column] == category].copy()
-        #df_category.drop(columns = [category_column], inplace=True)
+        df_category = df[df[category_column] == category]
 
         # 문자열 데이터 원핫인코딩
         string_columns = [col for col in features if df_category[col].dtype == 'object']
@@ -286,6 +277,9 @@ def category_model_evaluation(
     # 결과 반환
     return results_df.sort_values(by="test_mae_ratio")
 
+
+
+
 # 사용예시
 """
 # SVR 모델을 선택하여 실행
@@ -300,6 +294,3 @@ results_df = category_model_evaluation(
 
 print(results_df)
 """
-
-#########################################################################################
-
